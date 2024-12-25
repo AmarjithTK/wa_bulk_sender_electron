@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WhatsApp Image Sender</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --md-sys-color-primary: #006495;
+            --md-sys-color-on-primary: #ffffff;
+            --md-sys-color-primary-container: #cde5ff;
+            --md-sys-color-on-primary-container: #001e31;
+            --md-sys-color-surface: #fdfcff;
+            --md-sys-color-on-surface: #1a1c1e;
+            --md-sys-color-outline: #73777f;
+            --md-elevation-level-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+            --md-elevation-level-2: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 24px;
+            background-color: #f8f9fa;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: var(--md-sys-color-surface);
+            border-radius: 28px;
+            padding: 24px;
+            box-shadow: var(--md-elevation-level-1);
+        }
+
+        .md-card {
+            background-color: var(--md-sys-color-surface);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 16px 0;
+            box-shadow: var(--md-elevation-level-2);
+            border: 1px solid var(--md-sys-color-outline);
+        }
+
+        .md-button {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            border-radius: 20px;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .md-button:hover {
+            background-color: #004b71;
+        }
+
+        .md-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .md-button.secondary {
+            background-color: var(--md-sys-color-primary-container);
+            color: var(--md-sys-color-on-primary-container);
+        }
+
+        .input-field {
+            margin-bottom: 16px;
+        }
+
+        .input-field label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .input-field input,
+        .input-field textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--md-sys-color-outline);
+            border-radius: 4px;
+            font-size: 16px;
+            background-color: var(--md-sys-color-surface);
+        }
+
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 24px 0;
+            padding: 24px;
+            background-color: white;
+            border-radius: 16px;
+        }
+
+        #qrCode {
+            padding: 16px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--md-elevation-level-1);
+        }
+
+        #qrCode img {
+            max-width: 256px;
+            height: auto;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 4px;
+        }
+
+        .status-chip.success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status-chip.error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+
+        .status-chip.warning {
+            background-color: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--md-sys-color-primary);
+            transition: width 0.3s ease;
+        }
+
+        .preview-image {
+            max-width: 200px;
+            border-radius: 8px;
+            box-shadow: var(--md-elevation-level-1);
+        }
+
+        .auth-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 16px 0;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: var(--md-sys-color-primary-container);
+        }
+
+        .material-icons {
+            font-size: 24px;
+        }
+
+        .snackbar {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 4px;
+            background-color: #323232;
+            color: white;
+            font-size: 14px;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>WhatsApp Image Sender</h1>
+
+        <div class="md-card auth-section">
+            <h2>Authentication Status</h2>
+            <div class="auth-status">
+                <span class="material-icons" id="authIcon">phone_iphone</span>
+                <span id="authStatus">Waiting for QR code...</span>
+            </div>
+            <div class="qr-container">
+                <div id="qrCode"></div>
+            </div>
+        </div>
+
+        <div class="md-card">
+            <h2>Excel File</h2>
+            <div class="input-field">
+                <button class="md-button" id="selectFile">
+                    <span class="material-icons">upload_file</span>
+                    Select Excel File
+                </button>
+                <span id="selectedFile"></span>
+            </div>
+        </div>
+
+        <div class="md-card">
+            <h2>Image Configuration</h2>
+            <div class="input-field">
+                <button class="md-button" id="selectImage">
+                    <span class="material-icons">image</span>
+                    Select Image
+                </button>
+                <span id="selectedImage"></span>
+                <div id="imagePreview"></div>
+            </div>
+            <div class="input-field">
+                <label>Image Caption</label>
+                <textarea id="imageCaption" rows="4"></textarea>
+            </div>
+        </div>
+
+        <div class="md-card">
+            <h2>Delay Settings</h2>
+            <div class="input-field">
+                <label>Delay Range (seconds)</label>
+                <div style="display: flex; gap: 16px;">
+                    <input type="number" id="minDelay" min="1" value="10">
+                    <span>to</span>
+                    <input type="number" id="maxDelay" min="1" value="15">
+                </div>
+            </div>
+        </div>
+
+        <div class="md-card">
+            <div class="button-group">
+                <button class="md-button" id="startSending">
+                    <span class="material-icons">send</span>
+                    Start Sending
+                </button>
+                <button class="md-button secondary" id="stopSending" disabled>
+                    <span class="material-icons">stop</span>
+                    Stop
+                </button>
+                <button class="md-button secondary" id="downloadReport" disabled>
+                    <span class="material-icons">download</span>
+                    Download Report
+                </button>
+            </div>
+        </div>
+
+        <div class="md-card">
+            <h2>Progress</h2>
+            <div class="progress-bar">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+            <div id="progressText">0/0 messages sent</div>
+        </div>
+    </div>
+
+    <div class="snackbar" id="snackbar"></div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>
