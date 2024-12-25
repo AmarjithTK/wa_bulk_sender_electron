@@ -1,13 +1,30 @@
 const { ipcRenderer } = require('electron');
+const puppeteerPath = require('puppeteer').executablePath();
+
+
 const { Client, MessageMedia, LocalAuth } = require('whatsapp-web.js');
 const QRCode = require('qrcode');
 const xlsx = require('xlsx');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const path = require('path');
+const getUserDataPath = () => {
+    const userDataPath = process.env.APPDATA || 
+        (process.platform == 'darwin' ? 
+            path.join(process.env.HOME, 'Library', 'Application Support') : 
+            path.join(process.env.HOME, '.local', 'share'));
+    return path.join(userDataPath, 'whatsapp-bulk-sender');
+};
 
-const sessionPath = path.join(__dirname, 'whatsapp-session');  // You can adjust this path as needed
+const ensureDirectoryExists = (dirPath) => {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+    }
+};
 
+// Update sessionPath definition
+const sessionPath = path.join(getUserDataPath(), 'whatsapp-session');
+ensureDirectoryExists(sessionPath);
 
 let client;
 let selectedFilePath;
@@ -57,9 +74,12 @@ function initializeWhatsApp() {
             clientId: "client-one"
         }),
         puppeteer: {
+
+            executablePath:puppeteerPath,
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            userDataDir: null, 
+            // userDataDir: null, 
+            // userDataDir: './user-data',
         }
     });
 
