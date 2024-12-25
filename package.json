@@ -14,5 +14,22 @@
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.26.0",
     "xlsx": "^0.18.5"
-  }
+  },
+  "devDependencies": {
+    "electron-builder": "^X.X.X"
+  },
+  "build": {
+    "appId": "com.sinspire.whatsbulk",
+    "productName": "WhatsApp Message Sender",
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  
+}
 }

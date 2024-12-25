@@ -1,14 +1,18 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const { exec } = require('child_process');
+
 
 function createWindow() {
     const win = new BrowserWindow({
-        width: 1200,
-        height: 900,
+        width: 720,
+        height: 1280,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
-        }
+        },
+        icon: path.join(__dirname, 'assets/logo.png'), // Icon for Linux/Windows
+
     });
 
     win.loadFile('index.html');
@@ -52,4 +56,15 @@ ipcMain.handle('select-image', async () => {
 
 ipcMain.on('log-message', (event, message) => {
     console.log('Renderer message:', message);
+});
+
+ipcMain.on('execute-command', (event, command) => {
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`exec error: ${error}`);
+            event.reply('command-result', { success: false, error: error.message });
+            return;
+        }
+        event.reply('command-result', { success: true, output: stdout });
+    });
 });

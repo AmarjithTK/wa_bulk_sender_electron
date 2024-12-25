@@ -57,7 +57,7 @@ function initializeWhatsApp() {
             clientId: "client-one"
         }),
         puppeteer: {
-            headless: false,
+            headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
             userDataDir: null, 
         }
@@ -157,6 +157,7 @@ async function startMessaging(filePath, imagePath, imageCaption, delays) {
 
                 const messageDelay = Math.floor(Math.random() * 
                     (delays.maxDelay - delays.minDelay + 1) + delays.minDelay);
+                    console.log(messageDelay+'is huge')
                 await new Promise(resolve => setTimeout(resolve, messageDelay));
 
             } catch (error) {
@@ -192,10 +193,12 @@ function readExcel(filePath) {
     return xlsx.utils.sheet_to_json(sheet);
 }
 
-function generatePDFReport() {
+function generatePDFReport(fileName) {
     const doc = new PDFDocument();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const reportPath = path.join(process.cwd(), `whatsapp_report_${timestamp}.pdf`);
+    // const reportPath = path.join(process.cwd(), `whatsapp_report_${timestamp}.pdf`);
+    const reportPath = path.join(process.cwd(), `whatsapp_report_${path.basename(fileName, path.extname(fileName))}_${timestamp}.pdf`);
+
     const stream = fs.createWriteStream(reportPath);
 
     doc.pipe(stream);
@@ -228,9 +231,28 @@ function generatePDFReport() {
 
     doc.end();
 
+    stream.on('finish', () => {
+        // After the PDF has been written, open it using the default system viewer
+        const openCommand = process.platform === 'win32' ? 'start' : 
+        process.platform === 'darwin' ? 'open' : 'xdg-open';
+
+executeCommand(`${openCommand} ${reportPath}`)})
+
     updateStatus(`Report saved as: ${reportPath}`, 'success');
 }
 
+
+function executeCommand(command) {
+    ipcRenderer.send('execute-command', command);
+
+    ipcRenderer.on('command-result', (event, result) => {
+        if (result.success) {
+            console.log('Command executed successfully:', result.output);
+        } else {
+            console.error('Command execution failed:', result.error);
+        }
+    });
+}
 
 // Add these at the bottom of renderer.js, before initializeWhatsApp();
 
@@ -306,7 +328,7 @@ document.getElementById('stopSending').addEventListener('click', () => {
 // Download report button handler
 document.getElementById('downloadReport').addEventListener('click', () => {
     try {
-        generatePDFReport();
+        generatePDFReport(selectedFilePath);
         showSnackbar('Report generated successfully!');
     } catch (error) {
         showSnackbar('Error generating report: ' + error.message, 5000);
@@ -326,6 +348,17 @@ function updateStatus(message, type) {
 // Initialize the WhatsApp client
 
 
+function cleanup() {
+    if (client) {
+        client.destroy()
+            .then(() => console.log('Client destroyed successfully'))
+            .catch(err => console.error('Error destroying client:', err));
+    }
+}
 
 // Initialize WhatsApp client when the app starts
 initializeWhatsApp();
+
+// Handle cleanup when the window is closing
+window.addEventListener('beforeunload', cleanup);
+// Initialize WhatsApp client when the app starts
