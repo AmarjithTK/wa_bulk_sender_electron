@@ -26,3 +26,6 @@ else
     echo "Failed to download Chromium for $platform."
     exit 1
 fi
+
+
+# npm install --production
