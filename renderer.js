@@ -1,5 +1,5 @@
 const { ipcRenderer } = require('electron');
-const puppeteerPath = require('puppeteer').executablePath();
+// let puppeteerPath = require('puppeteer').executablePath();
 
 
 const { Client, MessageMedia, LocalAuth } = require('whatsapp-web.js');
@@ -8,19 +8,115 @@ const xlsx = require('xlsx');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const path = require('path');
-const getUserDataPath = () => {
-    const userDataPath = process.env.APPDATA || 
-        (process.platform == 'darwin' ? 
-            path.join(process.env.HOME, 'Library', 'Application Support') : 
-            path.join(process.env.HOME, '.local', 'share'));
-    return path.join(userDataPath, 'whatsapp-bulk-sender');
+
+const isDev = false
+
+// browser / chrome / win64 - 133.0.6921.0 / chrome - win64 / chrome.exe
+// browser / chrome / mac - 133.0.6921.0 / chrome - mac - x64 / Google Chrome for Testing.app / Contents / MacOS / Google Chrome for Testing
+// browser / chrome / linux - 133.0.6921.0 / chrome - linux64 / chrome
+
+
+
+
+const getPuppeteerPath = () => {
+    // Check if running in development or production
+    // const isDev = process.env.NODE_ENV === 'development' || !ipcRenderer.isPackaged;
+
+    // Base path differs for dev and prod
+    const basePath = isDev ?
+        path.join(__dirname, 'browser') : // Development path
+        path.join(process.resourcesPath, 'browser'); // Production path
+
+    // Version number - can be made configurable if needed
+    const chromeVersion = '133.0.6921.0';
+
+    switch (process.platform) {
+        case 'win32':
+            return path.join(
+                basePath,
+                'chrome',
+                `win64-${chromeVersion}`,
+                'chrome-win64',
+                'chrome.exe'
+            );
+
+        case 'darwin': // macOS
+            return path.join(
+                basePath,
+                'chrome',
+                `mac-${chromeVersion}`,
+                'chrome-mac-x64',
+                'Google Chrome for Testing.app',
+                'Contents',
+                'MacOS',
+                'Google Chrome for Testing'
+            );
+
+        case 'linux':
+            return path.join(
+                basePath,
+                'chrome',
+                `linux-${chromeVersion}`,
+                'chrome-linux64',
+                'chrome'
+            );
+
+        default:
+            throw new Error(`Unsupported platform: ${process.platform}`);
+    }
 };
+
+// Helper function to verify the Chrome executable exists
+const verifyChromePath = () => {
+    const chromePath = getPuppeteerPath();
+
+    if (!fs.existsSync(chromePath)) {
+        throw new Error(`Chrome executable not found at: ${chromePath}`);
+    }
+    // if (process.platform !== 'win32') {
+    //     fs.chmodSync(chromePath, '755');
+    // }
+
+    return chromePath;
+};
+
+// Example usage
+
+let puppeteerPath = verifyChromePath();
+
+// puppeteerPath = path.join(_ 'node_modules', 'electron', 'dist', 'electron');
+
+
+
+
+const getUserDataPath = () => {
+    // Check if running in development or production
+    // const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+    if (isDev) {
+        // In development, store data in project directory
+        return path.join(__dirname, 'dev-userdata');
+    } else {
+        // In production, use system's app data directory
+        const userDataPath = process.env.APPDATA ||
+            (process.platform == 'darwin' ?
+                path.join(process.env.HOME, 'Library', 'Application Support') :
+                path.join(process.env.HOME, '.local', 'share'));
+
+        return path.join(userDataPath, 'whatsapp-bulk-sender');
+    }
+};
+
+
 
 const ensureDirectoryExists = (dirPath) => {
     if (!fs.existsSync(dirPath)) {
         fs.mkdirSync(dirPath, { recursive: true });
     }
 };
+
+
+
 
 // Update sessionPath definition
 const sessionPath = path.join(getUserDataPath(), 'whatsapp-session');
@@ -48,10 +144,10 @@ function showSnackbar(message, duration = 3000) {
 function updateAuthStatus(message, status) {
     const authStatus = document.getElementById('authStatus');
     const authIcon = document.getElementById('authIcon');
-    
+
     authStatus.textContent = message;
-    
-    switch(status) {
+
+    switch (status) {
         case 'pending':
             authIcon.textContent = 'phone_iphone';
             authStatus.parentElement.style.backgroundColor = '#fff3e0';
@@ -75,7 +171,7 @@ function initializeWhatsApp() {
         }),
         puppeteer: {
 
-            executablePath:puppeteerPath,
+            executablePath: puppeteerPath,
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
             // userDataDir: null, 
@@ -85,7 +181,7 @@ function initializeWhatsApp() {
 
     console.log(client)
 
-    ipcRenderer.send('log-message', 'This is a message from the renderer process ' +client);
+    ipcRenderer.send('log-message', 'This is a message from the renderer process ' + client);
 
 
     client.on('qr', async (qr) => {
@@ -162,8 +258,8 @@ async function startMessaging(filePath, imagePath, imageCaption, delays) {
             try {
                 updateStatus(`Sending message to ${number.Phone}...`, 'success');
 
-                await client.sendMessage(formattedNumber, media, { 
-                    caption: imageCaption 
+                await client.sendMessage(formattedNumber, media, {
+                    caption: imageCaption
                 });
 
                 messageResults.push({
@@ -175,9 +271,9 @@ async function startMessaging(filePath, imagePath, imageCaption, delays) {
 
                 updateProgress(i + 1);
 
-                const messageDelay = Math.floor(Math.random() * 
+                const messageDelay = Math.floor(Math.random() *
                     (delays.maxDelay - delays.minDelay + 1) + delays.minDelay);
-                    console.log(messageDelay+'is huge')
+                console.log(messageDelay + 'is huge')
                 await new Promise(resolve => setTimeout(resolve, messageDelay));
 
             } catch (error) {
@@ -192,7 +288,7 @@ async function startMessaging(filePath, imagePath, imageCaption, delays) {
         }
 
         document.getElementById('downloadReport').disabled = false;
-        
+
         if (isSending) {
             updateStatus('Finished sending all messages!', 'success');
         }
@@ -253,10 +349,11 @@ function generatePDFReport(fileName) {
 
     stream.on('finish', () => {
         // After the PDF has been written, open it using the default system viewer
-        const openCommand = process.platform === 'win32' ? 'start' : 
-        process.platform === 'darwin' ? 'open' : 'xdg-open';
+        const openCommand = process.platform === 'win32' ? 'start' :
+            process.platform === 'darwin' ? 'open' : 'xdg-open';
 
-executeCommand(`${openCommand} ${reportPath}`)})
+        executeCommand(`${openCommand} ${reportPath}`)
+    })
 
     updateStatus(`Report saved as: ${reportPath}`, 'success');
 }

@@ -68,3 +68,7 @@ ipcMain.on('execute-command', (event, command) => {
         event.reply('command-result', { success: true, output: stdout });
     });
 });
+
+
+
+
