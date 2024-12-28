@@ -24,6 +24,7 @@ const getPuppeteerPath = () => {
     // const isDev = process.env.NODE_ENV === 'development' || !ipcRenderer.isPackaged;
 
     // Base path differs for dev and prod
+    let isDev = true
     const basePath = isDev ?
         path.join(__dirname, 'browser') : // Development path
         path.join(process.resourcesPath, 'browser'); // Production path
@@ -93,6 +94,7 @@ let puppeteerPath = verifyChromePath();
 const getUserDataPath = () => {
     // Check if running in development or production
     // const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+    let isDev = false
 
     if (isDev) {
         // In development, store data in project directory
