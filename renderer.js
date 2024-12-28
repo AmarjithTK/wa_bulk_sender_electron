@@ -8,8 +8,9 @@ const xlsx = require('xlsx');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const path = require('path');
+const os = require('os')
 
-const isDev = false
+const isDev = true
 
 // browser / chrome / win64 - 133.0.6921.0 / chrome - win64 / chrome.exe
 // browser / chrome / mac - 133.0.6921.0 / chrome - mac - x64 / Google Chrome for Testing.app / Contents / MacOS / Google Chrome for Testing
@@ -309,13 +310,16 @@ function readExcel(filePath) {
     return xlsx.utils.sheet_to_json(sheet);
 }
 
+// Modify generatePDFReport to use a path in the temp directory
 function generatePDFReport(fileName) {
     const doc = new PDFDocument();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    // const reportPath = path.join(process.cwd(), `whatsapp_report_${timestamp}.pdf`);
-    const reportPath = path.join(process.cwd(), `whatsapp_report_${path.basename(fileName, path.extname(fileName))}_${timestamp}.pdf`);
+    // Use system temp directory
+    const tempDir = os.tmpdir();
+    const reportFileName = `whatsapp_report_${path.basename(fileName, path.extname(fileName))}_${timestamp}.pdf`;
+    const reportPath = path.join(tempDir, reportFileName);
 
-    const stream = fs.createWriteStream(reportPath);
+    const stream = fs.createWriteStream(reportPath, { mode: 0o644 });
 
     doc.pipe(stream);
 
@@ -348,16 +352,14 @@ function generatePDFReport(fileName) {
     doc.end();
 
     stream.on('finish', () => {
-        // After the PDF has been written, open it using the default system viewer
-        const openCommand = process.platform === 'win32' ? 'start' :
-            process.platform === 'darwin' ? 'open' : 'xdg-open';
+        const openCommand = process.platform === 'win32' ? `start "" "${reportPath}"` :
+            process.platform === 'darwin' ? `open "${reportPath}"` : `xdg-open "${reportPath}"`;
 
-        executeCommand(`${openCommand} ${reportPath}`)
-    })
+        executeCommand(openCommand);
+    });
 
     updateStatus(`Report saved as: ${reportPath}`, 'success');
 }
-
 
 function executeCommand(command) {
     ipcRenderer.send('execute-command', command);
