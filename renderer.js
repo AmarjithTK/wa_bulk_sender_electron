@@ -10,7 +10,7 @@ const PDFDocument = require('pdfkit');
 const path = require('path');
 const os = require('os')
 
-const isDev = true
+const isDev = false
 
 // browser / chrome / win64 - 133.0.6921.0 / chrome - win64 / chrome.exe
 // browser / chrome / mac - 133.0.6921.0 / chrome - mac - x64 / Google Chrome for Testing.app / Contents / MacOS / Google Chrome for Testing
@@ -24,7 +24,7 @@ const getPuppeteerPath = () => {
     // const isDev = process.env.NODE_ENV === 'development' || !ipcRenderer.isPackaged;
 
     // Base path differs for dev and prod
-    let isDev = true
+    // let isDev = true
     const basePath = isDev ?
         path.join(__dirname, 'browser') : // Development path
         path.join(process.resourcesPath, 'browser'); // Production path
@@ -92,38 +92,66 @@ let puppeteerPath = verifyChromePath();
 
 
 const getUserDataPath = () => {
-    // Check if running in development or production
-    // const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-    let isDev = false
+    // Properly detect if we're in development mode
+    // let isDev = true
 
     if (isDev) {
-        // In development, store data in project directory
-        return path.join(__dirname, 'dev-userdata');
+        // Development path
+        const devPath = path.join(__dirname, 'dev-userdata');
+        ensureDirectoryExists(devPath);
+        return devPath;
     } else {
-        // In production, use system's app data directory
-        const userDataPath = process.env.APPDATA ||
-            (process.platform == 'darwin' ?
-                path.join(process.env.HOME, 'Library', 'Application Support') :
-                path.join(process.env.HOME, '.local', 'share'));
+        // Production path
+        let userDataPath;
 
-        return path.join(userDataPath, 'whatsapp-bulk-sender');
+        if (process.platform === 'darwin') {
+            // macOS path
+            userDataPath = path.join(
+                process.env.HOME,
+                'Library',
+                'Application Support',
+                'whatsapp-bulk-sender'
+            );
+        } else if (process.platform === 'win32') {
+            // Windows path
+            userDataPath = path.join(
+                process.env.APPDATA,
+                'whatsapp-bulk-sender'
+            );
+        } else {
+            // Linux path
+            userDataPath = path.join(
+                process.env.HOME,
+                '.config',
+                'whatsapp-bulk-sender'
+            );
+        }
+
+        ensureDirectoryExists(userDataPath);
+        return userDataPath;
     }
 };
-
-
 
 const ensureDirectoryExists = (dirPath) => {
-    if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
+    try {
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
+        }
+        // Verify write permissions
+        fs.accessSync(dirPath, fs.constants.W_OK);
+    } catch (error) {
+        console.error(`Error creating/accessing directory: ${dirPath}`, error);
+        // Fallback to temp directory if there are permission issues
+        const tempPath = path.join(require('os').tmpdir(), 'whatsapp-bulk-sender');
+        fs.mkdirSync(tempPath, { recursive: true });
+        return tempPath;
     }
 };
-
-
 
 
 // Update sessionPath definition
 const sessionPath = path.join(getUserDataPath(), 'whatsapp-session');
-ensureDirectoryExists(sessionPath);
+// ensureDirectoryExists(sessionPath);
 
 let client;
 let selectedFilePath;
@@ -176,7 +204,15 @@ function initializeWhatsApp() {
 
             executablePath: puppeteerPath,
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ],
             // userDataDir: null, 
             // userDataDir: './user-data',
         }
