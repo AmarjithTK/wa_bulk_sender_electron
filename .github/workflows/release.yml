@@ -1,0 +1,58 @@
+name: Build and Release
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, master]
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install dependencies
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
+        run: npm ci
+      - name: Build Electron app
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist/
+          if-no-files-found: ignore
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
