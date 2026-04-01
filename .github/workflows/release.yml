@@ -29,8 +29,7 @@ jobs:
       - name: Build Electron app
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build
+        run: npm run build -- --publish never
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
