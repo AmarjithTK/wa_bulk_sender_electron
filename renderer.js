@@ -12,81 +12,9 @@ const os = require('os')
 
 const isDev = false
 
-// browser / chrome / win64 - 133.0.6921.0 / chrome - win64 / chrome.exe
-// browser / chrome / mac - 133.0.6921.0 / chrome - mac - x64 / Google Chrome for Testing.app / Contents / MacOS / Google Chrome for Testing
-// browser / chrome / linux - 133.0.6921.0 / chrome - linux64 / chrome
-
-
-
-
-const getPuppeteerPath = () => {
-    // Check if running in development or production
-    // const isDev = process.env.NODE_ENV === 'development' || !ipcRenderer.isPackaged;
-
-    // Base path differs for dev and prod
-    // let isDev = true
-    const basePath = isDev ?
-        path.join(__dirname, 'browser') : // Development path
-        path.join(process.resourcesPath, 'browser'); // Production path
-
-    // Version number - can be made configurable if needed
-    const chromeVersion = '133.0.6921.0';
-
-    switch (process.platform) {
-        case 'win32':
-            return path.join(
-                basePath,
-                'chrome',
-                `win64-${chromeVersion}`,
-                'chrome-win64',
-                'chrome.exe'
-            );
-
-        case 'darwin': // macOS
-            return path.join(
-                basePath,
-                'chrome',
-                `mac-${chromeVersion}`,
-                'chrome-mac-x64',
-                'Google Chrome for Testing.app',
-                'Contents',
-                'MacOS',
-                'Google Chrome for Testing'
-            );
-
-        case 'linux':
-            return path.join(
-                basePath,
-                'chrome',
-                `linux-${chromeVersion}`,
-                'chrome-linux64',
-                'chrome'
-            );
-
-        default:
-            throw new Error(`Unsupported platform: ${process.platform}`);
-    }
-};
-
-// Helper function to verify the Chrome executable exists
-const verifyChromePath = () => {
-    const chromePath = getPuppeteerPath();
-
-    if (!fs.existsSync(chromePath)) {
-        throw new Error(`Chrome executable not found at: ${chromePath}`);
-    }
-    // if (process.platform !== 'win32') {
-    //     fs.chmodSync(chromePath, '755');
-    // }
-
-    return chromePath;
-};
-
-// Example usage
-
-let puppeteerPath = verifyChromePath();
-
-// puppeteerPath = path.join(_ 'node_modules', 'electron', 'dist', 'electron');
+// Use Electron's built-in Chromium engine instead of a bundled Chrome binary.
+// process.execPath points to the Electron executable in both development and production.
+let puppeteerPath = process.execPath;
 
 
 
