@@ -16,6 +16,10 @@ function createWindow() {
     });
 
     win.loadFile('index.html');
+
+    win.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        console.log(`[Renderer]: ${message}`);
+    });
 }
 
 app.whenReady().then(createWindow);

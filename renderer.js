@@ -129,8 +129,7 @@ function initializeWhatsApp() {
             clientId: "client-one"
         }),
         puppeteer: {
-
-            executablePath: puppeteerPath,
+            // executablePath: puppeteerPath, // Removed to use bundled chromium
             headless: true,
             args: [
                 '--no-sandbox',
