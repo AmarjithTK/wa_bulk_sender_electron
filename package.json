@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-sender-gui",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Desktop WhatsApp bulk sender with multi-session campaigns",
   "main": "main.js",
   "author": "AmarjithTK",
@@ -31,6 +31,8 @@
     "appId": "com.sinspire.whatsbulk",
     "productName": "WhatsApp Message Sender",
     "icon": "assets/iconkitchen/web/icon-512.png",
+    "copyright": "Copyright (c) 2026 AmarjithTK",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "files": [
       "**/*",
@@ -39,14 +41,53 @@
       "!.gitignore"
     ],
     "mac": {
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
       "target": [
         "dmg"
       ]
     },
+    "dmg": {
+      "title": "WhatsApp Message Sender ${version}",
+      "background": "assets/showcase1.png",
+      "icon": "assets/iconkitchen/web/icon-512.png",
+      "window": {
+        "width": 640,
+        "height": 420
+      },
+      "contents": [
+        {
+          "x": 180,
+          "y": 210,
+          "type": "file"
+        },
+        {
+          "x": 460,
+          "y": 210,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
     "win": {
+      "icon": "assets/iconkitchen/web/favicon.ico",
       "target": [
         "nsis"
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "WhatsApp Message Sender",
+      "uninstallDisplayName": "WhatsApp Message Sender",
+      "displayLanguageSelector": true,
+      "license": "LICENSE_INSTALLER.txt"
     },
     "linux": {
       "category": "Utility",

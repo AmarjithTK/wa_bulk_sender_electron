@@ -6,6 +6,12 @@ on:
       - 'v*'
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      releaseTag:
+        description: 'Release tag name (example: v1.1.4)'
+        required: true
+        type: string
 jobs:
   build:
     name: Build (${{ matrix.os }})
@@ -40,7 +46,7 @@ jobs:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.releaseTag != '')
     permissions:
       contents: write
     steps:
@@ -51,6 +57,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.releaseTag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: artifacts/**/*
           generate_release_notes: true
         env:

@@ -1,0 +1,15 @@
+WhatsApp Message Sender - Installer License
+
+Copyright (c) 2026 AmarjithTK
+
+Permission is granted to install and use this software for lawful purposes.
+
+By continuing installation, you agree to:
+- Use the application in compliance with applicable laws and platform terms.
+- Not use the software for spam, harassment, fraud, or unauthorized messaging.
+- Respect WhatsApp and Meta service policies.
+
+The software is provided "as is", without warranty of any kind.
+The author is not liable for damages arising from use or inability to use the software.
+
+If you do not agree with these terms, cancel the installation.
