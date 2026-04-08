@@ -12,6 +12,9 @@ on:
         description: 'Release tag name (example: v1.1.4)'
         required: true
         type: string
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 jobs:
   build:
     name: Build (${{ matrix.os }})
