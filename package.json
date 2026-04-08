@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-sender-gui",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Desktop WhatsApp bulk sender with multi-session campaigns",
   "main": "main.js",
   "author": "AmarjithTK",
@@ -28,6 +28,7 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
+    "publish": "never",
     "appId": "com.sinspire.whatsbulk",
     "productName": "WhatsApp Message Sender",
     "icon": "assets/iconkitchen/web/icon-512.png",
