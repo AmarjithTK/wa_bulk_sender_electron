@@ -1,24 +1,40 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 
+let mainWindow;
 
 function createWindow() {
-    const win = new BrowserWindow({
-        width: 720,
+    mainWindow = new BrowserWindow({
+        width: 960,
         height: 1280,
+        minWidth: 760,
+        minHeight: 640,
+        frame: false,
+        titleBarStyle: 'hidden',
+        autoHideMenuBar: true,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
         },
-        icon: path.join(__dirname, 'assets/logo.png'), // Icon for Linux/Windows
+        icon: path.join(__dirname, 'assets/iconkitchen/web/icon-512.png')
 
     });
 
-    win.loadFile('index.html');
+    Menu.setApplicationMenu(null);
+    mainWindow.setMenuBarVisibility(false);
+    mainWindow.loadFile('index.html');
 
-    win.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
         console.log(`[Renderer]: ${message}`);
+    });
+
+    mainWindow.on('maximize', () => {
+        mainWindow.webContents.send('window-maximized', true);
+    });
+
+    mainWindow.on('unmaximize', () => {
+        mainWindow.webContents.send('window-maximized', false);
     });
 }
 
@@ -54,6 +70,68 @@ ipcMain.handle('select-image', async () => {
         ]
     });
     return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('select-media', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+            { name: 'Media', extensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'mp4', 'mov', 'webm'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    });
+    return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('select-folder', async (event, options = {}) => {
+    const result = await dialog.showOpenDialog({
+        title: options.title || 'Choose Folder',
+        defaultPath: options.defaultPath,
+        properties: ['openDirectory', 'createDirectory']
+    });
+    return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('open-path', async (event, targetPath) => {
+    if (!targetPath) return false;
+    try {
+        const openResult = await shell.openPath(targetPath);
+        return openResult === '';
+    } catch (error) {
+        console.error('open-path failed', error);
+        return false;
+    }
+});
+
+ipcMain.handle('get-user-data-path', async () => {
+    return app.getPath('userData');
+});
+
+ipcMain.handle('window-minimize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.minimize();
+    }
+});
+
+ipcMain.handle('window-maximize-toggle', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+        return false;
+    }
+    mainWindow.maximize();
+    return true;
+});
+
+ipcMain.handle('window-close', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.close();
+    }
+});
+
+ipcMain.handle('window-is-maximized', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    return mainWindow.isMaximized();
 });
 
 

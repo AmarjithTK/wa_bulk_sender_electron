@@ -1,281 +1,479 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-    <title>WhatsApp Image Sender</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Campaign Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
         :root {
-            --md-sys-color-primary: #006495;
-            --md-sys-color-on-primary: #ffffff;
-            --md-sys-color-primary-container: #cde5ff;
-            --md-sys-color-on-primary-container: #001e31;
-            --md-sys-color-surface: #fdfcff;
-            --md-sys-color-on-surface: #1a1c1e;
-            --md-sys-color-outline: #73777f;
-            --md-elevation-level-1: 0 1px 2px rgba(0, 0, 0, 0.3);
-            --md-elevation-level-2: 0 2px 4px rgba(0, 0, 0, 0.3);
+            --bg: #eef2f5;
+            --panel: #ffffff;
+            --line: #ccd6de;
+            --text: #16212a;
+            --muted: #5d6a75;
+            --accent: #005f8d;
+            --accent-soft: #e2f1f8;
         }
+
+        * { box-sizing: border-box; }
 
         body {
-            font-family: 'Roboto', sans-serif;
             margin: 0;
-            padding: 24px;
-            background-color: #f8f9fa;
-            color: var(--md-sys-color-on-surface);
+            font-family: 'Roboto', sans-serif;
+            background: radial-gradient(circle at 10% -20%, #dceff8 0%, #eef2f5 55%, #edf0f3 100%);
+            color: var(--text);
+            font-size: 13px;
+            overflow: hidden;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: var(--md-sys-color-surface);
-            border-radius: 28px;
-            padding: 24px;
-            box-shadow: var(--md-elevation-level-1);
+        .window-shell {
+            height: 100vh;
+            border: 1px solid #c6d2db;
+            display: grid;
+            grid-template-rows: 34px 1fr;
+            background: #f5f9fc;
         }
 
-        .md-card {
-            background-color: var(--md-sys-color-surface);
-            border-radius: 16px;
-            padding: 16px;
-            margin: 16px 0;
-            box-shadow: var(--md-elevation-level-2);
-            border: 1px solid var(--md-sys-color-outline);
+        .titlebar {
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 6px 0 10px;
+            border-bottom: 1px solid #c9d6e0;
+            background: linear-gradient(180deg, #f7fcff 0%, #edf3f8 100%);
+            -webkit-app-region: drag;
+            user-select: none;
         }
 
-        .md-button {
-            background-color: var(--md-sys-color-primary);
-            color: var(--md-sys-color-on-primary);
-            border: none;
-            border-radius: 20px;
-            padding: 10px 24px;
-            font-size: 14px;
-            font-weight: 500;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: background-color 0.2s;
+        .titlebar-left {
             display: inline-flex;
             align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #183041;
+        }
+
+        .titlebar-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            -webkit-app-region: no-drag;
+        }
+
+        .titlebar-btn {
+            width: 28px;
+            height: 24px;
+            padding: 0;
+            border-radius: 6px;
+            border: 1px solid #ccd8e1;
+            background: #f7fbff;
+            color: #27465b;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .titlebar-btn:hover { background: #eaf2f8; }
+        .titlebar-btn.close:hover { background: #ffe5e5; color: #8a2020; }
+
+        .window-content { overflow: auto; }
+
+        .app {
+            max-width: 1320px;
+            margin: 8px auto;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: 360px 1fr;
             gap: 8px;
         }
 
-        .md-button:hover {
-            background-color: #004b71;
+        .grid-main {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            min-width: 0;
         }
 
-        .md-button:disabled {
-            background-color: #cccccc;
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        .title {
+            font-size: 15px;
+            font-weight: 700;
+            margin: 0 0 8px;
+        }
+
+        .row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+
+        .grid-two {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 3px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        input, select, textarea, button {
+            font: inherit;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 7px;
+            background: #fff;
+        }
+
+        textarea {
+            min-height: 72px;
+            resize: vertical;
+        }
+
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-soft { background: var(--accent-soft); color: #0d3850; }
+        .btn-danger { background: #ffe4e4; color: #7e1d1d; }
+
+        button:disabled {
+            opacity: 0.55;
             cursor: not-allowed;
         }
 
-        .md-button.secondary {
-            background-color: var(--md-sys-color-primary-container);
-            color: var(--md-sys-color-on-primary-container);
-        }
-
-        .input-field {
-            margin-bottom: 16px;
-        }
-
-        .input-field label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: var(--md-sys-color-on-surface);
-        }
-
-        .input-field input,
-        .input-field textarea {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--md-sys-color-outline);
-            border-radius: 4px;
-            font-size: 16px;
-            background-color: var(--md-sys-color-surface);
-        }
-
-        .qr-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 24px 0;
-            padding: 24px;
-            background-color: white;
-            border-radius: 16px;
-        }
-
-        #qrCode {
-            padding: 16px;
-            background: white;
+        .status-box {
+            border: 1px solid var(--line);
             border-radius: 8px;
-            box-shadow: var(--md-elevation-level-1);
+            padding: 8px;
+            background: #f8fbfd;
+            margin-bottom: 8px;
         }
 
-        #qrCode img {
-            max-width: 256px;
-            height: auto;
+        .chip {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
         }
 
-        .status-chip {
+        .chip.ready { background: #ddf7e4; color: #1f7a3c; }
+        .chip.pending { background: #fff1dd; color: #a25f00; }
+        .chip.error { background: #ffe6e6; color: #a12622; }
+
+        .list {
+            max-height: 240px;
+            overflow: auto;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .list-item {
+            padding: 7px;
+            border-bottom: 1px solid #e9eef2;
+            font-size: 12px;
+        }
+
+        .list-item:last-child { border-bottom: none; }
+
+        .qr-wrap {
+            border: 1px dashed var(--line);
+            border-radius: 8px;
+            min-height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+        }
+
+        .qr-wrap img { max-width: 180px; }
+
+        .progress {
+            height: 6px;
+            background: #dfebf3;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 4px 0;
+        }
+
+        .progress > div {
+            height: 100%;
+            width: 0;
+            background: var(--accent);
+            transition: width 0.2s;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 11px;
+            overflow-wrap: anywhere;
+        }
+
+        .tooltip-inline {
             display: inline-flex;
             align-items: center;
-            padding: 4px 12px;
-            border-radius: 16px;
-            font-size: 14px;
-            font-weight: 500;
-            margin: 4px;
-        }
-
-        .status-chip.success {
-            background-color: #e8f5e9;
-            color: #2e7d32;
-        }
-
-        .status-chip.error {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-
-        .status-chip.warning {
-            background-color: #fff3e0;
-            color: #ef6c00;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 4px;
-            background-color: #e0e0e0;
-            border-radius: 2px;
-            overflow: hidden;
-            margin: 16px 0;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background-color: var(--md-sys-color-primary);
-            transition: width 0.3s ease;
-        }
-
-        .preview-image {
-            max-width: 200px;
-            border-radius: 8px;
-            box-shadow: var(--md-elevation-level-1);
-        }
-
-        .auth-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin: 16px 0;
-            padding: 12px;
-            border-radius: 8px;
-            background-color: var(--md-sys-color-primary-container);
-        }
-
-        .material-icons {
-            font-size: 24px;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #d8e8f2;
+            color: #0e3c57;
+            font-size: 11px;
+            cursor: help;
+            user-select: none;
+            margin-left: 4px;
         }
 
         .snackbar {
             position: fixed;
-            bottom: 24px;
+            bottom: 10px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 12px 24px;
-            border-radius: 4px;
-            background-color: #323232;
-            color: white;
-            font-size: 14px;
-            z-index: 1000;
+            background: #21303d;
+            color: #fff;
+            border-radius: 7px;
+            padding: 7px 12px;
+            font-size: 12px;
             display: none;
+            z-index: 200;
+        }
+
+        dialog {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px;
+            max-width: 360px;
+        }
+
+        dialog::backdrop {
+            background: rgba(10, 24, 34, 0.35);
+        }
+
+        @media (max-width: 980px) {
+            .app { grid-template-columns: 1fr; }
+            .grid-two { grid-template-columns: 1fr; }
         }
     </style>
 </head>
-
 <body>
-    <div class="container">
-        <h1>WhatsApp Image Sender</h1>
+    <div class="window-shell">
+        <header class="titlebar">
+            <div class="titlebar-left">
+                <span>WhatsApp Campaign Console</span>
+            </div>
+            <div class="titlebar-controls">
+                <button class="titlebar-btn" id="windowMinBtn" title="Minimize">_</button>
+                <button class="titlebar-btn" id="windowMaxBtn" title="Maximize">[]</button>
+                <button class="titlebar-btn close" id="windowCloseBtn" title="Close">X</button>
+            </div>
+        </header>
 
-        <div class="md-card auth-section">
-            <h2>Authentication Status</h2>
-            <div class="auth-status">
-                <span class="material-icons" id="authIcon">phone_iphone</span>
-                <span id="authStatus">Waiting for QR code...</span>
-            </div>
-            <div class="qr-container">
-                <div id="qrCode"></div>
-            </div>
-        </div>
+        <div class="window-content">
+            <div class="app">
+                <div class="grid-main">
+                    <section class="panel">
+                        <h2 class="title">WhatsApp Sessions</h2>
+                        <div class="row">
+                            <input id="sessionNameInput" placeholder="Session name (example: Sales SIM 1)">
+                            <button class="btn-primary" id="addSessionBtn"><span class="material-icons">add</span>Add</button>
+                        </div>
+                        <div id="sessionsList" class="list"></div>
+                    </section>
 
-        <div class="md-card">
-            <h2>Excel File</h2>
-            <div class="input-field">
-                <button class="md-button" id="selectFile">
-                    <span class="material-icons">upload_file</span>
-                    Select Excel File
-                </button>
-                <span id="selectedFile"></span>
-            </div>
-        </div>
+                    <section class="panel">
+                        <h2 class="title">Authentication</h2>
+                        <div class="row">
+                            <label style="display:flex;align-items:center;gap:6px;margin:0;">
+                                <input type="checkbox" id="showBrowserOnConnect" style="width:auto;">
+                                Keep WhatsApp Web window open for auth and sending (optional)
+                            </label>
+                        </div>
+                        <div class="row">
+                            <select id="authSessionSelect"></select>
+                            <button class="btn-primary" id="connectSessionBtn"><span class="material-icons">qr_code_2</span>Connect</button>
+                        </div>
+                        <div class="status-box">
+                            <div id="authStatus">Select a session and click Connect.</div>
+                        </div>
 
-        <div class="md-card">
-            <h2>Image Configuration</h2>
-            <div class="input-field">
-                <button class="md-button" id="selectImage">
-                    <span class="material-icons">image</span>
-                    Select Image
-                </button>
-                <span id="selectedImage"></span>
-                <div id="imagePreview"></div>
-            </div>
-            <div class="input-field">
-                <label>Image Caption</label>
-                <textarea id="imageCaption" rows="4"></textarea>
-            </div>
-        </div>
+                        <div class="status-box">
+                            <div><strong>Storage Folder</strong></div>
+                            <div id="storagePathLabel" class="hint">Not configured yet</div>
+                            <div class="row" style="margin-top:6px;">
+                                <button class="btn-soft" id="chooseStorageFolderBtn"><span class="material-icons">folder</span>Choose Folder</button>
+                                <button class="btn-soft" id="openStorageFolderBtn"><span class="material-icons">folder_open</span>Open</button>
+                            </div>
+                            <div class="row" style="margin-bottom:0;">
+                                <button class="btn-soft" id="createBackupBtn"><span class="material-icons">backup</span>Backup</button>
+                                <button class="btn-soft" id="restoreBackupBtn"><span class="material-icons">restore</span>Restore</button>
+                            </div>
+                        </div>
 
-        <div class="md-card">
-            <h2>Delay Settings</h2>
-            <div class="input-field">
-                <label>Delay Range (seconds)</label>
-                <div style="display: flex; gap: 16px;">
-                    <input type="number" id="minDelay" min="1" value="10">
-                    <span>to</span>
-                    <input type="number" id="maxDelay" min="1" value="15">
+                        <div id="qrCode" class="qr-wrap"></div>
+                    </section>
+
+                    <section class="panel">
+                        <h2 class="title">Send Routing</h2>
+                        <label>Send Mode</label>
+                        <select id="sendMode">
+                            <option value="single">Single session</option>
+                            <option value="pool">Session pool</option>
+                        </select>
+                        <div class="row" style="margin-top:6px;">
+                            <div style="flex:1;">
+                                <label>Single Session</label>
+                                <select id="singleSessionSelect"></select>
+                            </div>
+                        </div>
+                        <label style="margin-top:6px;">Pool Sessions</label>
+                        <div id="poolSessions" class="list"></div>
+                    </section>
+                </div>
+
+                <div class="grid-main">
+                    <section class="panel">
+                        <h2 class="title">Contacts Input</h2>
+                        <div class="grid-two">
+                            <div>
+                                <label>Campaign Name</label>
+                                <input id="campaignName" placeholder="Campaign April Batch A">
+                            </div>
+                            <div>
+                                <label>Default Country Code</label>
+                                <input id="defaultCountryCode" value="91" placeholder="91">
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-top:6px;">
+                            <button class="btn-soft" id="selectFile"><span class="material-icons">upload_file</span>Choose Excel</button>
+                            <span class="mono" id="selectedFile">No file</span>
+                        </div>
+
+                        <div class="grid-two">
+                            <div>
+                                <label>Phone Number Column</label>
+                                <select id="phoneColumnSelect"></select>
+                            </div>
+                            <div style="display:flex;align-items:end;">
+                                <button class="btn-primary" id="loadExcelContactsBtn" style="width:100%;"><span class="material-icons">table_rows</span>Load Excel Contacts</button>
+                            </div>
+                        </div>
+
+                        <label style="margin-top:6px;">Manual Numbers (comma or new line)</label>
+                        <textarea id="manualNumbers" placeholder="+919999999999&#10;9898989898"></textarea>
+                        <div class="row">
+                            <label style="display:flex;align-items:center;gap:6px;margin:0;">
+                                <input type="checkbox" id="appendManualCheckbox" style="width:auto;">Append to current contacts
+                            </label>
+                            <button class="btn-soft" id="loadManualContactsBtn"><span class="material-icons">edit_note</span>Load Manual Contacts</button>
+                        </div>
+
+                        <div class="status-box">
+                            <div id="contactsSummary">No contacts loaded.</div>
+                            <div class="hint" id="excelPreview"></div>
+                            <div class="hint" id="invalidDetails"></div>
+                        </div>
+                        <div id="contactsPreview" class="list"></div>
+                    </section>
+
+                    <section class="panel">
+                        <h2 class="title">Message and Controls</h2>
+                        <div class="row">
+                            <button class="btn-soft" id="selectMedia"><span class="material-icons">attach_file</span>Attach Media (Optional)</button>
+                            <span id="selectedMedia" class="mono">No media</span>
+                        </div>
+                        <div class="row" style="margin-top:2px;">
+                            <label style="display:flex;align-items:center;gap:6px;margin:0;">
+                                <input type="checkbox" id="enableNamePersonalization" style="width:auto;">
+                                Enable placeholder personalization
+                                <span class="tooltip-inline" title="Use ${name} to auto-fill recipient name. Priority: Excel/Manual name column -> WhatsApp pushname/name -> there. You can also use ${ColumnName} for any imported column.">i</span>
+                            </label>
+                        </div>
+                        <label>Message / Caption</label>
+                        <textarea id="messageText" placeholder="Hi, this is a follow-up message."></textarea>
+                        <div class="hint">Example: Hi ${name}, your order for ${product} is ready.</div>
+
+                        <div class="grid-two">
+                            <div>
+                                <label>Min Delay (sec)</label>
+                                <input type="number" id="minDelay" min="1" value="6">
+                            </div>
+                            <div>
+                                <label>Max Delay (sec)</label>
+                                <input type="number" id="maxDelay" min="1" value="12">
+                            </div>
+                        </div>
+
+                        <div class="row" style="margin-top:6px;flex-wrap:wrap;">
+                            <button class="btn-primary" id="startSending"><span class="material-icons">play_arrow</span>Start</button>
+                            <button class="btn-soft" id="pauseSending" disabled><span class="material-icons">pause</span>Pause</button>
+                            <button class="btn-soft" id="resumeSending" disabled><span class="material-icons">replay</span>Resume</button>
+                            <button class="btn-danger" id="stopSending" disabled><span class="material-icons">stop</span>Stop</button>
+                            <button class="btn-soft" id="saveDraftBtn"><span class="material-icons">save</span>Save Draft</button>
+                            <button class="btn-soft" id="loadDraftBtn"><span class="material-icons">folder_open</span>Load Last Draft</button>
+                            <button class="btn-soft" id="downloadReport" disabled><span class="material-icons">download</span>Report</button>
+                        </div>
+
+                        <div class="progress"><div id="progressBarFill"></div></div>
+                        <div id="progressText" class="mono">0/0 messages sent</div>
+                    </section>
+
+                    <section class="panel">
+                        <h2 class="title">Saved Campaigns</h2>
+                        <div id="campaignsList" class="list"></div>
+                    </section>
                 </div>
             </div>
         </div>
-
-        <div class="md-card">
-            <div class="button-group">
-                <button class="md-button" id="startSending">
-                    <span class="material-icons">send</span>
-                    Start Sending
-                </button>
-                <button class="md-button secondary" id="stopSending" disabled>
-                    <span class="material-icons">stop</span>
-                    Stop
-                </button>
-                <button class="md-button secondary" id="downloadReport" disabled>
-                    <span class="material-icons">download</span>
-                    Download Report
-                </button>
-            </div>
-        </div>
-
-        <div class="md-card">
-            <h2>Progress</h2>
-            <div class="progress-bar">
-                <div class="progress-bar-fill" id="progressBarFill"></div>
-            </div>
-            <div id="progressText">0/0 messages sent</div>
-        </div>
     </div>
 
-    <div class="snackbar" id="snackbar"></div>
+    <input id="excelFileInput" type="file" accept=".xlsx,.xls" style="display:none">
+    <input id="mediaFileInput" type="file" accept="image/*,.pdf,video/*" style="display:none">
 
+    <dialog id="renameSessionDialog">
+        <h3 style="margin:0 0 8px;">Rename Session</h3>
+        <input id="renameSessionInput" placeholder="Session name" maxlength="40" style="margin-bottom:10px;">
+        <div class="row" style="justify-content:flex-end;margin:0;">
+            <button class="btn-soft" id="renameCancelBtn">Cancel</button>
+            <button class="btn-primary" id="renameSaveBtn">Save</button>
+        </div>
+    </dialog>
+
+    <div id="snackbar" class="snackbar"></div>
     <script src="renderer.js"></script>
 </body>
-
 </html>
