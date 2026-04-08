@@ -243,6 +243,35 @@
             overflow-wrap: anywhere;
         }
 
+        .throughput-box {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px;
+            background: #f8fbfd;
+            margin-top: 6px;
+        }
+
+        .throughput-box.warn {
+            border-color: #e7b97a;
+            background: #fff7ea;
+        }
+
+        .throughput-box.danger {
+            border-color: #d98f8f;
+            background: #fff0f0;
+        }
+
+        .mode-toggle {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .mode-pane.hidden {
+            display: none;
+        }
+
         .tooltip-inline {
             display: inline-flex;
             align-items: center;
@@ -427,7 +456,12 @@
                         <textarea id="messageText" placeholder="Hi, this is a follow-up message."></textarea>
                         <div class="hint">Example: Hi ${name}, your order for ${product} is ready.</div>
 
-                        <div class="grid-two">
+                        <div class="mode-toggle">
+                            <button type="button" class="btn-soft" id="modeDelayBtn">Set By Delay</button>
+                            <button type="button" class="btn-soft" id="modeSpeedBtn">Set By Speed</button>
+                        </div>
+
+                        <div class="grid-two mode-pane" id="delayModePane">
                             <div>
                                 <label>Min Delay (sec)</label>
                                 <input type="number" id="minDelay" min="1" value="6">
@@ -436,6 +470,23 @@
                                 <label>Max Delay (sec)</label>
                                 <input type="number" id="maxDelay" min="1" value="12">
                             </div>
+                        </div>
+
+                        <div class="grid-two mode-pane hidden" id="speedModePane">
+                            <div>
+                                <label>Target Max Messages / Minute</label>
+                                <input type="number" id="maxPerMinute" min="1" placeholder="Optional, e.g. 6">
+                            </div>
+                            <div>
+                                <label>Target Max Messages / Hour</label>
+                                <input type="number" id="maxPerHour" min="1" placeholder="Optional, e.g. 180">
+                            </div>
+                        </div>
+
+                        <div id="throughputBox" class="throughput-box">
+                            <div id="throughputSummary" class="mono">Estimated speed: -</div>
+                            <div id="throughputUpperLimit" class="hint">Upper limit: -</div>
+                            <div id="throughputWarning" class="hint"></div>
                         </div>
 
                         <div class="row" style="margin-top:6px;flex-wrap:wrap;">

@@ -11,6 +11,10 @@ const STORAGE_CONFIG_FILE_NAME = 'storage_config.json';
 const STORE_FILE_NAME = 'campaign_store.json';
 const AUTH_DIR_NAME = 'whatsapp-session-auth';
 const MANAGED_STORAGE_DIR_NAME = 'wa_sender_data';
+const RECOMMENDED_MAX_PER_MIN = 6;
+const RECOMMENDED_MAX_PER_HOUR = 180;
+const HARD_MAX_PER_MIN = 12;
+const HARD_MAX_PER_HOUR = 360;
 
 let puppeteerExecutablePath = null;
 try {
@@ -50,7 +54,8 @@ const state = {
     reconnectTimers: new Map(),
     reconnectAttempts: new Map(),
     sessionInitPromises: new Map(),
-    pendingRenameSessionId: null
+    pendingRenameSessionId: null,
+    formRateMode: 'delay'
 };
 
 function byId(id) {
@@ -112,6 +117,136 @@ function showSnackbar(message, duration = 3200) {
     setTimeout(() => {
         snackbar.style.display = 'none';
     }, duration);
+}
+
+function clampNumber(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function getThroughputFromDelay(minDelaySec, maxDelaySec) {
+    const safeMin = Math.max(1, Number(minDelaySec) || 1);
+    const safeMax = Math.max(safeMin, Number(maxDelaySec) || safeMin);
+    const upperPerMin = 60 / safeMin;
+    const lowerPerMin = 60 / safeMax;
+    const avgPerMin = 60 / ((safeMin + safeMax) / 2);
+    return {
+        lowerPerMin,
+        upperPerMin,
+        avgPerMin,
+        lowerPerHour: lowerPerMin * 60,
+        upperPerHour: upperPerMin * 60,
+        avgPerHour: avgPerMin * 60
+    };
+}
+
+function deriveDelayRangeFromSpeed(maxPerMinute, maxPerHour) {
+    const minuteLimit = Number(maxPerMinute) > 0 ? Number(maxPerMinute) : null;
+    const hourLimit = Number(maxPerHour) > 0 ? Number(maxPerHour) : null;
+    const candidates = [];
+
+    if (minuteLimit) candidates.push(minuteLimit);
+    if (hourLimit) candidates.push(hourLimit / 60);
+
+    if (candidates.length === 0) {
+        throw new Error('Set max messages per minute or per hour when using speed mode.');
+    }
+
+    const effectivePerMinute = Math.min(...candidates);
+    if (!Number.isFinite(effectivePerMinute) || effectivePerMinute <= 0) {
+        throw new Error('Invalid speed limits entered.');
+    }
+
+    const baseDelaySec = 60 / effectivePerMinute;
+    const minDelaySec = Math.max(1, Math.floor(baseDelaySec * 0.9));
+    const maxDelaySec = Math.max(minDelaySec, Math.ceil(baseDelaySec * 1.15));
+
+    return {
+        minDelaySec,
+        maxDelaySec,
+        effectivePerMinute,
+        effectivePerHour: effectivePerMinute * 60
+    };
+}
+
+function getSpeedValidationWarning(upperPerMin, upperPerHour) {
+    if (upperPerMin > HARD_MAX_PER_MIN || upperPerHour > HARD_MAX_PER_HOUR) {
+        return `Too high. Reduce speed to <= ${HARD_MAX_PER_MIN.toFixed(0)} msg/min and <= ${HARD_MAX_PER_HOUR.toFixed(0)} msg/hour.`;
+    }
+
+    if (upperPerMin > RECOMMENDED_MAX_PER_MIN || upperPerHour > RECOMMENDED_MAX_PER_HOUR) {
+        return `High speed. Recommended to stay around <= ${RECOMMENDED_MAX_PER_MIN.toFixed(0)} msg/min (${RECOMMENDED_MAX_PER_HOUR.toFixed(0)} msg/hour).`;
+    }
+
+    return '';
+}
+
+function setRateMode(mode) {
+    state.formRateMode = mode === 'speed' ? 'speed' : 'delay';
+    const isDelay = state.formRateMode === 'delay';
+
+    byId('delayModePane').classList.toggle('hidden', !isDelay);
+    byId('speedModePane').classList.toggle('hidden', isDelay);
+
+    byId('modeDelayBtn').classList.toggle('btn-primary', isDelay);
+    byId('modeDelayBtn').classList.toggle('btn-soft', !isDelay);
+    byId('modeSpeedBtn').classList.toggle('btn-primary', !isDelay);
+    byId('modeSpeedBtn').classList.toggle('btn-soft', isDelay);
+
+    renderThroughputIndicator();
+}
+
+function renderThroughputIndicator() {
+    const mode = state.formRateMode || 'delay';
+    const box = byId('throughputBox');
+    const summary = byId('throughputSummary');
+    const upper = byId('throughputUpperLimit');
+    const warning = byId('throughputWarning');
+    if (!box || !summary || !upper || !warning) return;
+
+    let metrics;
+    let warningText = '';
+
+    if (mode === 'delay') {
+        const minDelay = clampNumber(parseInt(byId('minDelay').value, 10) || 1, 1, 86400);
+        const maxDelay = clampNumber(parseInt(byId('maxDelay').value, 10) || minDelay, minDelay, 86400);
+        metrics = getThroughputFromDelay(minDelay, maxDelay);
+        warningText = getSpeedValidationWarning(metrics.upperPerMin, metrics.upperPerHour);
+    } else {
+        const maxPerMinute = parseFloat(byId('maxPerMinute').value || '0');
+        const maxPerHour = parseFloat(byId('maxPerHour').value || '0');
+        if (maxPerMinute <= 0 && maxPerHour <= 0) {
+            summary.textContent = 'Estimated speed: enter a minute/hour limit';
+            upper.textContent = 'Upper limit: -';
+            warning.textContent = 'Speed mode requires at least one value.';
+            box.classList.remove('warn', 'danger');
+            box.classList.add('warn');
+            return;
+        }
+
+        try {
+            const converted = deriveDelayRangeFromSpeed(maxPerMinute, maxPerHour);
+            metrics = getThroughputFromDelay(converted.minDelaySec, converted.maxDelaySec);
+            warningText = getSpeedValidationWarning(metrics.upperPerMin, metrics.upperPerHour);
+        } catch (error) {
+            summary.textContent = 'Estimated speed: invalid speed values';
+            upper.textContent = 'Upper limit: -';
+            warning.textContent = error.message;
+            box.classList.remove('warn', 'danger');
+            box.classList.add('danger');
+            return;
+        }
+    }
+
+    summary.textContent = `Estimated speed: ${metrics.lowerPerMin.toFixed(2)}-${metrics.upperPerMin.toFixed(2)} msg/min (${metrics.lowerPerHour.toFixed(0)}-${metrics.upperPerHour.toFixed(0)} msg/hour)`;
+    upper.textContent = `Upper limit (fastest case): ${metrics.upperPerMin.toFixed(2)} msg/min | ${metrics.upperPerHour.toFixed(0)} msg/hour`;
+    warning.textContent = warningText || 'Speed looks reasonable.';
+
+    box.classList.remove('warn', 'danger');
+    if (metrics.upperPerMin > HARD_MAX_PER_MIN || metrics.upperPerHour > HARD_MAX_PER_HOUR) {
+        box.classList.add('danger');
+    } else if (metrics.upperPerMin > RECOMMENDED_MAX_PER_MIN || metrics.upperPerHour > RECOMMENDED_MAX_PER_HOUR) {
+        box.classList.add('warn');
+    }
 }
 
 function uniqueId(prefix) {
@@ -596,9 +731,36 @@ function applyTemplate(template, rowData) {
         if (dollarPrefix) {
             return fullMatch;
         }
+        // Leave spintax blocks intact here; they are resolved later.
+        if (String(key).includes('|')) {
+            return fullMatch;
+        }
         const value = rowData[key.trim()];
         return value === undefined || value === null ? '' : String(value);
     });
+}
+
+function resolveSpintax(template) {
+    if (!template) return '';
+    let output = String(template);
+    const spintaxPattern = /\{([^{}]*\|[^{}]*)\}/g;
+
+    // Resolve nested spintax from inner to outer blocks.
+    let hasMatch = true;
+    while (hasMatch) {
+        hasMatch = false;
+        output = output.replace(spintaxPattern, (_, body) => {
+            hasMatch = true;
+            const options = String(body)
+                .split('|')
+                .map(part => part.trim())
+                .filter(Boolean);
+            if (options.length === 0) return '';
+            return options[Math.floor(Math.random() * options.length)];
+        });
+    }
+
+    return output;
 }
 
 function getRowValueCaseInsensitive(rowData, searchKey) {
@@ -696,10 +858,63 @@ function pickSessionForCampaign(campaign) {
         return readyIds[0] || null;
     }
 
+    // Pool mode sends short bursts per session, then rotates to the next one.
     if (!campaign.roundRobinIndex) campaign.roundRobinIndex = 0;
-    const chosen = readyIds[campaign.roundRobinIndex % readyIds.length];
-    campaign.roundRobinIndex += 1;
+    if (!campaign.poolBurstRemaining || !campaign.poolCurrentSessionId || !readyIds.includes(campaign.poolCurrentSessionId)) {
+        campaign.poolCurrentSessionId = readyIds[campaign.roundRobinIndex % readyIds.length];
+        campaign.roundRobinIndex += 1;
+        campaign.poolBurstRemaining = Math.floor(Math.random() * 3) + 3; // 3..5
+    }
+
+    const chosen = campaign.poolCurrentSessionId;
+    campaign.poolBurstRemaining -= 1;
     return chosen;
+}
+
+function isWithinSendWindow(now, sendWindow) {
+    if (!sendWindow || !sendWindow.enforce) return true;
+    const hour = now.getHours();
+    const startHour = Number.isFinite(sendWindow.startHour) ? sendWindow.startHour : 9;
+    const endHour = Number.isFinite(sendWindow.endHour) ? sendWindow.endHour : 20;
+    return hour >= startHour && hour < endHour;
+}
+
+function getMsUntilNextSendWindow(now, sendWindow) {
+    const startHour = Number.isFinite(sendWindow?.startHour) ? sendWindow.startHour : 9;
+    const next = new Date(now);
+    next.setMinutes(0, 0, 0);
+
+    if (now.getHours() < startHour) {
+        next.setHours(startHour);
+    } else {
+        next.setDate(next.getDate() + 1);
+        next.setHours(startHour);
+    }
+
+    return Math.max(1000, next.getTime() - now.getTime());
+}
+
+async function waitInterruptible(ms, campaign, chunkMs = 1000) {
+    let waited = 0;
+    while (waited < ms) {
+        if (campaign.status === 'paused' || campaign.status === 'stopped' || state.loopStopRequested) {
+            break;
+        }
+        const remaining = ms - waited;
+        const step = Math.min(chunkMs, remaining);
+        await sleep(step);
+        waited += step;
+    }
+}
+
+async function getUnreadCount(client) {
+    if (!client) return 0;
+    try {
+        const chats = await client.getChats();
+        return chats.reduce((sum, chat) => sum + (chat?.unreadCount || 0), 0);
+    } catch (error) {
+        return 0;
+    }
 }
 
 async function ensureSessionClient(sessionId, options = {}) {
@@ -1066,6 +1281,7 @@ function renderAll() {
     renderAuthPanel();
     renderStoragePanel();
     renderControlState();
+    renderThroughputIndicator();
 }
 
 function getCurrentPoolSelection() {
@@ -1089,10 +1305,38 @@ function createCampaignFromForm() {
         throw new Error('No selected session is ready. Connect and scan QR first.');
     }
 
-    const minDelay = parseInt(byId('minDelay').value, 10) || 1;
-    const maxDelay = parseInt(byId('maxDelay').value, 10) || 1;
-    if (minDelay > maxDelay) {
-        throw new Error('Max delay must be greater than or equal to min delay.');
+    const rateMode = state.formRateMode || 'delay';
+    let minDelay = 1;
+    let maxDelay = 1;
+    let speedLimit = { maxPerMinute: null, maxPerHour: null, effectivePerMinute: null };
+
+    if (rateMode === 'speed') {
+        const maxPerMinute = parseFloat(byId('maxPerMinute').value || '0');
+        const maxPerHour = parseFloat(byId('maxPerHour').value || '0');
+        const converted = deriveDelayRangeFromSpeed(maxPerMinute, maxPerHour);
+
+        if (converted.effectivePerMinute > HARD_MAX_PER_MIN || converted.effectivePerHour > HARD_MAX_PER_HOUR) {
+            throw new Error(`Speed too high. Keep <= ${HARD_MAX_PER_MIN.toFixed(0)} msg/min and <= ${HARD_MAX_PER_HOUR.toFixed(0)} msg/hour.`);
+        }
+
+        minDelay = converted.minDelaySec;
+        maxDelay = converted.maxDelaySec;
+        speedLimit = {
+            maxPerMinute: maxPerMinute > 0 ? maxPerMinute : null,
+            maxPerHour: maxPerHour > 0 ? maxPerHour : null,
+            effectivePerMinute: converted.effectivePerMinute
+        };
+    } else {
+        minDelay = parseInt(byId('minDelay').value, 10) || 1;
+        maxDelay = parseInt(byId('maxDelay').value, 10) || 1;
+        if (minDelay > maxDelay) {
+            throw new Error('Max delay must be greater than or equal to min delay.');
+        }
+
+        const preview = getThroughputFromDelay(minDelay, maxDelay);
+        if (preview.upperPerMin > HARD_MAX_PER_MIN || preview.upperPerHour > HARD_MAX_PER_HOUR) {
+            throw new Error(`Delay is too aggressive. Keep <= ${HARD_MAX_PER_MIN.toFixed(0)} msg/min and <= ${HARD_MAX_PER_HOUR.toFixed(0)} msg/hour.`);
+        }
     }
 
     if (state.contacts.length === 0) {
@@ -1112,11 +1356,16 @@ function createCampaignFromForm() {
         totalCount: state.contacts.length,
         results: [],
         status: 'running',
+        rateMode,
         messageTemplate: byId('messageText').value || '',
         personalizationEnabled: !!byId('enableNamePersonalization').checked,
         mediaPath: state.selectedMediaPath,
         delay: { minMs: minDelay * 1000, maxMs: maxDelay * 1000 },
+        speedLimit,
+        sendWindow: { enforce: true, startHour: 9, endHour: 20 },
         roundRobinIndex: 0,
+        poolCurrentSessionId: null,
+        poolBurstRemaining: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
@@ -1152,7 +1401,26 @@ async function sendOneMessage(campaign, index) {
     const afterDollar = hasDollarPlaceholders
         ? applyDollarTemplate(template, contact.rowData || {}, waContact, 'there')
         : template;
-    const message = applyTemplate(afterDollar, contact.rowData || {});
+    const templatedMessage = applyTemplate(afterDollar, contact.rowData || {});
+    const message = resolveSpintax(templatedMessage);
+
+    // [Risk Mitigation Algorithm: Step 1] - Natural Presence & Typing Emulation
+    let chat = null;
+    try {
+        await client.sendPresenceAvailable();
+        chat = await client.getChatById(chatId);
+        if (chat) await chat.sendStateTyping();
+        
+        // Dynamic typing delay simulating human speed (approx 50ms per char)
+        const baseTypingTimeMs = Math.min((message.length * 60), 4000); // cap at 4s
+        const typingJitter = Math.random() * 800;
+        await sleep(baseTypingTimeMs + typingJitter);
+        
+        if (chat) await chat.clearState();
+    } catch (e) {
+        // Chat might not exist yet if fresh number, silently proceed to sending
+        console.log("Typing emulation skipped, chat not formed yet for:", chatId);
+    }
 
     if (campaign.mediaPath) {
         const media = MessageMedia.fromFilePath(campaign.mediaPath);
@@ -1178,12 +1446,22 @@ async function runCampaignLoop(campaignId) {
     renderControlState();
 
     try {
+        // [Risk Mitigation Algorithm: Step 2] - Context Counters
+        let batchCounter = 0;              // Tracks consecutive msgs sent for coffee break
+        let streakErrors = 0;              // Evaluates sequential failure logic
+        const MAX_BATCH_BEFORE_BREAK = Math.floor(Math.random() * 8) + 15; // 15 to 22 msgs
+        
         while (campaign.status === 'running' && campaign.pendingIndices.length > 0 && !state.loopStopRequested) {
+            batchCounter++;
             const idx = campaign.pendingIndices.shift();
             campaign.attemptsByIndex[idx] = (campaign.attemptsByIndex[idx] || 0) + 1;
 
+            let currentDelayMs = Math.floor(Math.random() * (campaign.delay.maxMs - campaign.delay.minMs + 1)) + campaign.delay.minMs;
+            let lastSessionId = null;
+
             try {
                 const sendResult = await sendOneMessage(campaign, idx);
+                lastSessionId = sendResult.sessionId;
                 campaign.sentCount += 1;
                 campaign.results.push({
                     index: idx,
@@ -1193,7 +1471,19 @@ async function runCampaignLoop(campaignId) {
                     timestamp: new Date().toISOString(),
                     error: null
                 });
+                streakErrors = 0; // Reset on success to baseline
+
+                // Passive engagement-aware pacing: slow down if unread load is high.
+                if (campaign.sentCount % 10 === 0 && lastSessionId) {
+                    const activeClient = state.clients.get(lastSessionId);
+                    const unreadCount = await getUnreadCount(activeClient);
+                    if (unreadCount >= 25) {
+                        const pressureDelayMs = Math.floor(Math.random() * 15000) + 15000; // 15..30s
+                        currentDelayMs += pressureDelayMs;
+                    }
+                }
             } catch (error) {
+                streakErrors++;
                 const attempts = campaign.attemptsByIndex[idx];
                 const canRetry = campaign.sendMode === 'pool' && attempts < 3;
 
@@ -1210,6 +1500,10 @@ async function runCampaignLoop(campaignId) {
                         error: error.message
                     });
                 }
+                
+                // [Risk Mitigation Algorithm: Step 3] - Escalating Penalty for errors
+                // We multiply delays drastically to prevent spam-block cascade
+                currentDelayMs = currentDelayMs * Math.min(streakErrors + 1, 4);
             }
 
             campaign.updatedAt = new Date().toISOString();
@@ -1218,10 +1512,35 @@ async function runCampaignLoop(campaignId) {
             updateProgress(campaign.sentCount, campaign.totalCount);
             renderCampaigns();
 
-            const delay = Math.floor(Math.random() * (campaign.delay.maxMs - campaign.delay.minMs + 1)) + campaign.delay.minMs;
-            await sleep(delay);
+            // [Risk Mitigation Algorithm: Step 4] - Natural Human Coffee Breaks & Interruptible Delays
+            if (!state.loopStopRequested && campaign.status === 'running') {
+                if (campaign.sendWindow?.enforce && !isWithinSendWindow(new Date(), campaign.sendWindow)) {
+                    const waitMs = getMsUntilNextSendWindow(new Date(), campaign.sendWindow);
+                    const waitMinutes = Math.max(1, Math.ceil(waitMs / 60000));
+                    showSnackbar(`Outside send window. Waiting ${waitMinutes} min to resume.`, 3500);
+                    await waitInterruptible(waitMs, campaign, 1000);
+                }
 
-            if (campaign.status === 'paused' || campaign.status === 'stopped') {
+                if (batchCounter >= MAX_BATCH_BEFORE_BREAK) {
+                    batchCounter = 0; // Reset batch
+                    // Pause between 30 and 120 seconds to emulate stepping away from device
+                    const breakSecs = Math.floor(Math.random() * 90) + 30; 
+                    showSnackbar(`Simulating a human break for ${breakSecs}s to mitigate flagging...`);
+
+                    await waitInterruptible(breakSecs * 1000, campaign, 1000);
+                } else {
+                    if (campaign.sendMode === 'pool' && campaign.poolCurrentSessionId && campaign.poolBurstRemaining === 0) {
+                        // Session switch cooldown keeps a natural buffer between sender identities.
+                        const rotationCooldownMs = Math.floor(Math.random() * 6000) + 6000; // 6..12s
+                        currentDelayMs += rotationCooldownMs;
+                    }
+
+                    // Gradual loop to allow pausing UI during long waits
+                    await waitInterruptible(currentDelayMs, campaign, 500);
+                }
+            }
+
+            if (campaign.status === 'paused' || campaign.status === 'stopped' || state.loopStopRequested) {
                 break;
             }
         }
@@ -1250,8 +1569,11 @@ function saveDraft() {
         sendMode: byId('sendMode').value,
         singleSessionId: byId('singleSessionSelect').value,
         poolSessionIds: getCurrentPoolSelection(),
+        rateMode: state.formRateMode || 'delay',
         minDelay: byId('minDelay').value,
         maxDelay: byId('maxDelay').value,
+        maxPerMinute: byId('maxPerMinute').value,
+        maxPerHour: byId('maxPerHour').value,
         contacts: state.contacts,
         savedAt: new Date().toISOString()
     };
@@ -1271,8 +1593,11 @@ function loadDraft() {
     byId('messageText').value = draft.messageText || '';
     byId('enableNamePersonalization').checked = !!draft.personalizationEnabled;
     byId('sendMode').value = draft.sendMode || 'single';
+    setRateMode(draft.rateMode || 'delay');
     byId('minDelay').value = draft.minDelay || '6';
     byId('maxDelay').value = draft.maxDelay || '12';
+    byId('maxPerMinute').value = draft.maxPerMinute || '';
+    byId('maxPerHour').value = draft.maxPerHour || '';
 
     state.selectedFilePath = draft.selectedFilePath || null;
     state.selectedMediaPath = draft.selectedMediaPath || null;
@@ -1281,6 +1606,7 @@ function loadDraft() {
     byId('selectedMedia').textContent = state.selectedMediaPath ? path.basename(state.selectedMediaPath) : 'No media';
 
     renderAll();
+    renderThroughputIndicator();
 
     if (draft.singleSessionId) {
         byId('singleSessionSelect').value = draft.singleSessionId;
@@ -1299,8 +1625,11 @@ function loadCampaignToForm(campaign) {
     byId('sendMode').value = campaign.sendMode || 'single';
     byId('messageText').value = campaign.messageTemplate || '';
     byId('enableNamePersonalization').checked = !!campaign.personalizationEnabled;
+    setRateMode(campaign.rateMode || 'delay');
     byId('minDelay').value = String(Math.floor((campaign.delay?.minMs || 6000) / 1000));
     byId('maxDelay').value = String(Math.floor((campaign.delay?.maxMs || 12000) / 1000));
+    byId('maxPerMinute').value = campaign.speedLimit?.maxPerMinute || '';
+    byId('maxPerHour').value = campaign.speedLimit?.maxPerHour || '';
     state.selectedMediaPath = campaign.mediaPath || null;
     byId('selectedMedia').textContent = state.selectedMediaPath ? path.basename(state.selectedMediaPath) : 'No media';
     state.contacts = campaign.contacts || [];
@@ -1316,6 +1645,7 @@ function loadCampaignToForm(campaign) {
 
     updateProgress(campaign.sentCount || 0, campaign.totalCount || 0);
     renderContacts();
+    renderThroughputIndicator();
 }
 
 function openReport(reportPath) {
@@ -1571,6 +1901,14 @@ function bindEvents() {
         byId('poolSessions').style.opacity = isSingle ? '0.6' : '1';
     });
 
+    byId('modeDelayBtn').addEventListener('click', () => setRateMode('delay'));
+    byId('modeSpeedBtn').addEventListener('click', () => setRateMode('speed'));
+
+    ['minDelay', 'maxDelay', 'maxPerMinute', 'maxPerHour'].forEach(id => {
+        byId(id).addEventListener('input', renderThroughputIndicator);
+        byId(id).addEventListener('change', renderThroughputIndicator);
+    });
+
     const excelInput = byId('excelFileInput');
     const mediaInput = byId('mediaFileInput');
 
@@ -1668,6 +2006,7 @@ function bindEvents() {
             state.store.activeCampaignId = campaign.id;
             saveStore();
             renderAll();
+            renderThroughputIndicator();
             await runCampaignLoop(campaign.id);
         } catch (error) {
             showSnackbar(error.message, 4500);
@@ -1810,9 +2149,12 @@ async function initializeApp() {
     if (active && (active.status === 'running' || active.status === 'paused')) {
         loadCampaignToForm(active);
         showSnackbar(`Restored active campaign: ${active.name}`);
+    } else {
+        setRateMode('delay');
     }
 
     byId('sendMode').dispatchEvent(new Event('change'));
+    renderThroughputIndicator();
 }
 
 async function cleanup() {
