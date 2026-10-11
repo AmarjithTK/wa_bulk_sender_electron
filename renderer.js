@@ -62,6 +62,10 @@ function byId(id) {
     return document.getElementById(id);
 }
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
 function isMdSelect(el) {
     return !!el && String(el.tagName || '').toLowerCase().includes('md-outlined-select');
 }
@@ -648,13 +652,20 @@ function scheduleReconnect(sessionId) {
 
     clearReconnectTimer(sessionId);
     const attempts = (state.reconnectAttempts.get(sessionId) || 0) + 1;
+    if (attempts > 5) {
+        session.status = 'error';
+        session.lastError = 'Reconnect limit reached. Click Connect to try again.';
+        saveStore();
+        renderAll();
+        return;
+    }
     state.reconnectAttempts.set(sessionId, attempts);
 
     const delayMs = Math.min(30000, attempts * 4000);
     const timer = setTimeout(async () => {
         const liveSession = findSession(sessionId);
         if (!liveSession) return;
-        if (!['disconnected', 'error', 'new'].includes(liveSession.status)) return;
+        if (!['disconnected', 'error'].includes(liveSession.status)) return;
 
         try {
             // Respect user preference: visible window for all work or fully headless.
@@ -945,6 +956,9 @@ async function ensureSessionClient(sessionId, options = {}) {
         clearReconnectTimer(sessionId);
     }
 
+    // Electron's process.execPath is not Chrome. Resolve the browser explicitly.
+    puppeteerExecutablePath = await ipcRenderer.invoke('get-browser-path');
+
     const shouldShowBrowser = visibleBrowser !== null
         ? !!visibleBrowser
         : !!state.store.settings.showBrowserOnConnect;
@@ -979,7 +993,8 @@ async function ensureSessionClient(sessionId, options = {}) {
                 dataPath: state.authDataPath,
                 clientId: session.clientId
             }),
-            puppeteer: puppeteerOptions
+            puppeteer: puppeteerOptions,
+            webVersionCache: { type: 'none' }
         });
     };
 
@@ -1031,8 +1046,8 @@ async function ensureSessionClient(sessionId, options = {}) {
             session.lastError = message || 'Authentication failed';
             saveStore();
             renderAll();
-            showSnackbar(`Auth failed: ${session.name}`, 5000);
-            scheduleReconnect(sessionId);
+            showSnackbar(`Auth failed: ${session.name}. Reconnect and scan a fresh QR.`, 5000);
+            clearReconnectTimer(sessionId);
         });
 
         clientInstance.on('disconnected', (reason) => {
@@ -1049,7 +1064,7 @@ async function ensureSessionClient(sessionId, options = {}) {
     // Prefer bundled Chromium; fallback launcher is kept as backup.
     const initPromise = (async () => {
         let shouldUseBundledChromium = !!puppeteerExecutablePath;
-        const allowFallbackLauncher = true;
+        const allowFallbackLauncher = false;
         let client = createClient(shouldUseBundledChromium);
         wireClientEvents(client);
 
@@ -1059,21 +1074,7 @@ async function ensureSessionClient(sessionId, options = {}) {
             } catch (error) {
                 const errorText = String(error && error.message ? error.message : error);
                 const electronLaunchFailure = /Unable to find Electron app|about:blank|Failed to launch the browser process/i.test(errorText);
-                const alreadyRunningError = /browser is already running|Use a different `userDataDir`/i.test(errorText);
-
-                if (alreadyRunningError) {
-                    clearChromiumProfileLocks(session.clientId);
-                    try {
-                        await client.destroy();
-                    } catch (destroyError) {
-                        console.error('Client destroy after lock error', destroyError);
-                    }
-
-                    client = createClient(shouldUseBundledChromium);
-                    wireClientEvents(client);
-                    await client.initialize();
-                    return;
-                }
+                // Never delete profile locks owned by another Chromium process.
 
                 if (shouldUseBundledChromium && electronLaunchFailure && allowFallbackLauncher) {
                     try {
@@ -1094,9 +1095,16 @@ async function ensureSessionClient(sessionId, options = {}) {
             }
         };
 
+        state.clients.set(sessionId, client);
         try {
             await initializeWithRecovery();
         } catch (error) {
+            state.clients.delete(sessionId);
+            try { await client.destroy(); } catch (_) { /* browser may never have launched */ }
+            session.status = 'error';
+            session.lastError = error.message;
+            saveStore();
+            renderAll();
             const errorText = String(error && error.message ? error.message : error);
             if (/browser is already running|Use a different `userDataDir`/i.test(errorText)) {
                 throw new Error('Session profile is locked by another process. Close old WhatsApp browser windows and try Connect again.');
@@ -1123,6 +1131,9 @@ function renderSessions() {
     const authSelect = byId('authSessionSelect');
     const singleSelect = byId('singleSessionSelect');
     const poolContainer = byId('poolSessions');
+    const selectedAuthId = authSelect.value;
+    const selectedSingleId = singleSelect.value;
+    const selectedPoolIds = new Set(getCurrentPoolSelection());
 
     sessionsList.innerHTML = '';
     setSelectItems(authSelect, []);
@@ -1145,7 +1156,7 @@ function renderSessions() {
         row.className = 'list-item';
         row.innerHTML = `
             <div class="row" style="justify-content:space-between; margin-bottom:4px;">
-                <strong>${session.name}</strong>
+                <strong>${escapeHtml(session.name)}</strong>
                 ${sessionChip(session.status)}
             </div>
             <div class="row" style="margin-bottom:0;">
@@ -1165,7 +1176,7 @@ function renderSessions() {
         poolRow.innerHTML = `
             <label style="display:flex;align-items:center;gap:6px;margin:0;">
                 <input class="pool-session-check" data-id="${session.id}" type="checkbox" style="width:auto;">
-                <span>${session.name}</span>
+                <span>${escapeHtml(session.name)}</span>
             </label>
         `;
         poolContainer.appendChild(poolRow);
@@ -1174,8 +1185,11 @@ function renderSessions() {
     setSelectItems(authSelect, authItems, 'No sessions');
     setSelectItems(singleSelect, singleItems, 'No sessions');
 
-    if (!authSelect.value) authSelect.value = state.store.sessions[0].id;
-    if (!singleSelect.value) singleSelect.value = state.store.sessions[0].id;
+    if (state.store.sessions.some(session => session.id === selectedAuthId)) authSelect.value = selectedAuthId;
+    if (state.store.sessions.some(session => session.id === selectedSingleId)) singleSelect.value = selectedSingleId;
+    poolContainer.querySelectorAll('.pool-session-check').forEach(check => {
+        check.checked = selectedPoolIds.has(check.dataset.id);
+    });
 }
 
 function renderContacts() {
@@ -1221,7 +1235,7 @@ function renderCampaigns() {
         const total = campaign.totalCount || campaign.contacts.length;
         row.innerHTML = `
             <div class="row" style="justify-content:space-between; margin-bottom:3px;">
-                <strong>${campaign.name || campaign.id}</strong>
+                <strong>${escapeHtml(campaign.name || campaign.id)}</strong>
                 ${campaignStatusChip(campaign.status)}
             </div>
             <div class="mono">${sent}/${total} sent</div>
@@ -1342,6 +1356,9 @@ function createCampaignFromForm() {
     if (state.contacts.length === 0) {
         throw new Error('Load contacts from Excel or manual input before starting.');
     }
+    if (!byId('messageText').value.trim() && !state.selectedMediaPath) {
+        throw new Error('Enter a message or attach media before starting.');
+    }
 
     return {
         id: uniqueId('campaign'),
@@ -1362,7 +1379,7 @@ function createCampaignFromForm() {
         mediaPath: state.selectedMediaPath,
         delay: { minMs: minDelay * 1000, maxMs: maxDelay * 1000 },
         speedLimit,
-        sendWindow: { enforce: true, startHour: 9, endHour: 20 },
+        sendWindow: { enforce: !!byId('enforceSendWindow').checked, startHour: 9, endHour: 20 },
         roundRobinIndex: 0,
         poolCurrentSessionId: null,
         poolBurstRemaining: 0,
@@ -1452,6 +1469,11 @@ async function runCampaignLoop(campaignId) {
         const MAX_BATCH_BEFORE_BREAK = Math.floor(Math.random() * 8) + 15; // 15 to 22 msgs
         
         while (campaign.status === 'running' && campaign.pendingIndices.length > 0 && !state.loopStopRequested) {
+            if (campaign.sendWindow?.enforce && !isWithinSendWindow(new Date(), campaign.sendWindow)) {
+                showSnackbar('Outside the configured send window. Waiting until 09:00.', 4500);
+                await waitInterruptible(getMsUntilNextSendWindow(new Date(), campaign.sendWindow), campaign);
+                if (campaign.status !== 'running' || state.loopStopRequested) break;
+            }
             batchCounter++;
             const idx = campaign.pendingIndices.shift();
             campaign.attemptsByIndex[idx] = (campaign.attemptsByIndex[idx] || 0) + 1;
@@ -1909,17 +1931,9 @@ function bindEvents() {
         byId(id).addEventListener('change', renderThroughputIndicator);
     });
 
-    const excelInput = byId('excelFileInput');
-    const mediaInput = byId('mediaFileInput');
-
     byId('selectFile').addEventListener('click', async () => {
-        excelInput.value = '';
-        excelInput.click();
-    });
-
-    excelInput.addEventListener('change', async () => {
         try {
-            const filePath = excelInput.files && excelInput.files[0] ? excelInput.files[0].path : null;
+            const filePath = await ipcRenderer.invoke('select-file');
             if (!filePath) return;
             state.selectedFilePath = filePath;
             byId('selectedFile').textContent = path.basename(filePath);
@@ -1980,13 +1994,8 @@ function bindEvents() {
     });
 
     byId('selectMedia').addEventListener('click', async () => {
-        mediaInput.value = '';
-        mediaInput.click();
-    });
-
-    mediaInput.addEventListener('change', async () => {
         try {
-            const mediaPath = mediaInput.files && mediaInput.files[0] ? mediaInput.files[0].path : null;
+            const mediaPath = await ipcRenderer.invoke('select-media');
             if (!mediaPath) return;
             state.selectedMediaPath = mediaPath;
             byId('selectedMedia').textContent = path.basename(mediaPath);
@@ -1994,6 +2003,11 @@ function bindEvents() {
         } catch (error) {
             showSnackbar(`Media select error: ${error.message}`);
         }
+    });
+
+    byId('removeMediaBtn').addEventListener('click', () => {
+        state.selectedMediaPath = null;
+        byId('selectedMedia').textContent = 'No attachment';
     });
 
     byId('saveDraftBtn').addEventListener('click', saveDraft);
@@ -2098,15 +2112,8 @@ async function initializeApp() {
     let chosenStorageRoot = storageConfig.storageRootPath;
 
     if (!chosenStorageRoot) {
-        const selectedBase = await ipcRenderer.invoke('select-folder', {
-            title: 'Choose folder to save configs and sessions',
-            defaultPath: state.appDataPath
-        });
-
-        chosenStorageRoot = selectedBase
-            ? getManagedStorageRoot(selectedBase)
-            : state.appDataPath;
-
+        // Start immediately; a custom folder can be selected in settings later.
+        chosenStorageRoot = state.appDataPath;
         saveStorageConfig({ storageRootPath: chosenStorageRoot });
     }
 
@@ -2120,7 +2127,7 @@ async function initializeApp() {
 
     try {
         const isMax = await ipcRenderer.invoke('window-is-maximized');
-        byId('windowMaxBtn').textContent = isMax ? '[=]' : '[]';
+        byId('windowMaxBtn').title = isMax ? 'Restore window' : 'Maximize';
     } catch (error) {
         console.error('Window state read failed', error);
     }
@@ -2140,7 +2147,7 @@ async function initializeApp() {
             continue;
         }
 
-        if (['disconnected', 'error', 'new'].includes(session.status)) {
+        if (['disconnected', 'error'].includes(session.status)) {
             scheduleReconnect(session.id);
         }
     }

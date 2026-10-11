@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
+const fs = require('fs');
+const { getInstalledBrowsers, computeExecutablePath } = require('@puppeteer/browsers');
 
 let mainWindow;
 
@@ -23,7 +24,9 @@ function createWindow() {
 
     Menu.setApplicationMenu(null);
     mainWindow.setMenuBarVisibility(false);
-    mainWindow.loadFile('index.html');
+    mainWindow.loadFile(path.join(__dirname, 'dist-ui', 'index.html'));
+    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
 
     mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
         console.log(`[Renderer]: ${message}`);
@@ -38,7 +41,17 @@ function createWindow() {
     });
 }
 
-app.whenReady().then(createWindow);
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (!mainWindow) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+    });
+    app.whenReady().then(createWindow);
+}
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
@@ -140,15 +153,22 @@ ipcMain.on('log-message', (event, message) => {
     console.log('Renderer message:', message);
 });
 
-ipcMain.on('execute-command', (event, command) => {
-    exec(command, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`exec error: ${error}`);
-            event.reply('command-result', { success: false, error: error.message });
-            return;
-        }
-        event.reply('command-result', { success: true, output: stdout });
-    });
+ipcMain.handle('get-browser-path', async () => {
+    if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+        return process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+    const cacheDir = app.isPackaged
+        ? path.join(process.resourcesPath, 'browser')
+        : path.join(__dirname, 'browser');
+    const installed = await getInstalledBrowsers({ cacheDir });
+    const chrome = installed.filter(browser => browser.browser === 'chrome').pop();
+    if (chrome) {
+        const executablePath = computeExecutablePath({ cacheDir, browser: chrome.browser, buildId: chrome.buildId, platform: chrome.platform });
+        if (fs.existsSync(executablePath)) return executablePath;
+    }
+    const puppeteerPath = require('puppeteer').executablePath();
+    if (fs.existsSync(puppeteerPath)) return puppeteerPath;
+    throw new Error('Chrome is missing. Run npm run browser:install, or set PUPPETEER_EXECUTABLE_PATH to your Chrome executable.');
 });
 
 

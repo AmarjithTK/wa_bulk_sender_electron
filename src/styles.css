@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --primary: #047857;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #262626;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #059669;
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+* { border-color: var(--border); }
+body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; color: var(--foreground); background: var(--background); font-size: 14px; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+.window-shell { height: 100vh; display: grid; grid-template-rows: 42px 1fr; overflow: hidden; }
+.titlebar { display: flex; justify-content: space-between; align-items: center; padding: 0 8px 0 18px; background: var(--card); border-bottom: 1px solid var(--border); -webkit-app-region: drag; user-select: none; }
+.titlebar-controls { display: flex; -webkit-app-region: no-drag; }
+.window-content { overflow: auto; }
+.workspace-grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 24px; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.list { max-height: 230px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; min-height: 38px; }
+.list-item { padding: 12px; border-bottom: 1px solid var(--border); font-size: 12px; overflow-wrap: anywhere; }
+.list-item:last-child { border-bottom: 0; }
+.status-box, .throughput-box { background: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.7; }
+.throughput-box { margin-top: 12px; }
+.throughput-box.warn { background: #fffbeb; border-color: #fde68a; }
+.throughput-box.danger { background: #fef2f2; border-color: #fecaca; }
+.hint { color: var(--muted-foreground); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.mono { font-family: ui-monospace, monospace; font-size: 12px; }
+.qr-wrap { border: 1px dashed var(--border); border-radius: 10px; min-height: 200px; display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); font-size: 12px; background: #fff; }
+.qr-wrap img { width: 220px; max-width: 100%; }
+.chip { display: inline-flex; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 600; }
+.chip.ready { background: #ecfdf5; color: #047857; }
+.chip.pending { background: #fffbeb; color: #92400e; }
+.chip.error { background: #fef2f2; color: #b91c1c; }
+.btn-soft, .btn-primary, .btn-danger { display: inline-flex; justify-content: center; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 500; transition: background .15s; }
+.btn-soft { background: var(--card); color: var(--foreground); }
+.btn-soft:hover { background: var(--muted); }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.btn-danger { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.material-icons { display: none; }
+.progress { height: 6px; overflow: hidden; border-radius: 99px; background: #e5e5e5; }
+.progress > div { height: 100%; width: 0; background: var(--primary); transition: width .2s; }
+.snackbar { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 48px); background: var(--foreground); color: var(--card); padding: 14px 20px; border-radius: 10px; font-size: 13px; box-shadow: 0 8px 28px #0002; z-index: 200; }
+dialog { margin: auto; width: min(400px, 90vw); }
+dialog::backdrop { background: #0006; }
+@media (max-width: 900px) { .workspace-grid { grid-template-columns: 1fr; } }
